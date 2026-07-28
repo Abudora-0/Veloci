@@ -24,3 +24,10 @@ tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+[target.'cfg(windows)'.dependencies]
+# Job Objects: the only reliable way on Windows to make sure the engine (and
+# everything it itself spawns, e.g. a yt-dlp subprocess per download) actually
+# dies when the app closes -- std::process::Command alone never kills
+# descendants, orphaning them. See engine.rs's ProcessTreeJob.
+windows-sys = { version = "0.60", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
+

@@ -14,6 +14,99 @@ use tauri::{AppHandle, Emitter, Manager};
 
 pub struct EngineHandle {
     stdin: Mutex<Option<ChildStdin>>,
+    // Kept alive for the app's whole lifetime -- see ProcessTreeJob's docs
+    // below. Never read again after construction; the underscore reflects
+    // that its only job is to not get dropped early.
+    _job: Option<ProcessTreeJob>,
+}
+
+// std::process::Command alone never kills a child's own descendants on
+// Windows -- confirmed live: closing the app window left the engine (and,
+// one level deeper, whatever yt-dlp subprocess it had spawned for an active
+// download) running indefinitely as orphans. A Job Object with
+// KILL_ON_JOB_CLOSE fixes this at the OS level: every process assigned to
+// the job dies the instant its last handle closes, which happens
+// automatically when our own process exits for *any* reason (clean close,
+// crash, or the user force-killing veloci.exe via Task Manager) -- Windows
+// tears down a process's handle table on exit regardless of whether any
+// Rust Drop code gets a chance to run, so this doesn't depend on a
+// graceful-shutdown hook existing at all.
+#[cfg(target_os = "windows")]
+mod process_tree_job {
+    use std::os::windows::io::AsRawHandle;
+    use std::process::Child;
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+
+    pub struct ProcessTreeJob(HANDLE);
+
+    // A job object handle has no thread affinity; every Win32 call it's
+    // used with here is documented as safe from any thread.
+    unsafe impl Send for ProcessTreeJob {}
+    unsafe impl Sync for ProcessTreeJob {}
+
+    impl ProcessTreeJob {
+        pub fn new() -> Option<Self> {
+            unsafe {
+                let handle = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+                if handle.is_null() {
+                    return None;
+                }
+                let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+                info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+                let ok = SetInformationJobObject(
+                    handle,
+                    JobObjectExtendedLimitInformation,
+                    &info as *const _ as *const _,
+                    std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                );
+                if ok == 0 {
+                    CloseHandle(handle);
+                    return None;
+                }
+                Some(Self(handle))
+            }
+        }
+
+        // A new process spawned by a job member is, by default, automatically
+        // added to the same job -- this single assignment on the immediate
+        // child is enough to also cover the PyInstaller sidecar's own
+        // unpacked child process (see engine.rs module docs: onefile builds
+        // are a bootloader plus a second, unpacked process) and every
+        // yt-dlp subprocess spawned per download, without touching any of
+        // that spawn code.
+        pub fn add(&self, child: &Child) -> bool {
+            unsafe { AssignProcessToJobObject(self.0, child.as_raw_handle() as HANDLE) != 0 }
+        }
+    }
+
+    impl Drop for ProcessTreeJob {
+        fn drop(&mut self) {
+            unsafe {
+                CloseHandle(self.0);
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+use process_tree_job::ProcessTreeJob;
+
+#[cfg(not(target_os = "windows"))]
+struct ProcessTreeJob;
+
+#[cfg(not(target_os = "windows"))]
+impl ProcessTreeJob {
+    fn new() -> Option<Self> {
+        Some(Self)
+    }
+    fn add(&self, _child: &Child) -> bool {
+        true
+    }
 }
 
 // Dev-only: CARGO_MANIFEST_DIR is baked in at compile time, which is exactly
@@ -162,12 +255,21 @@ fn spawn_engine_process() -> std::io::Result<Child> {
 pub fn start(app: &AppHandle) {
     let mut child = spawn_engine_process().expect("failed to start veloci_engine sidecar");
 
+    // Best-effort: an older Windows without job-nesting support, or the
+    // rare case where job creation itself fails, just means we're back to
+    // the old orphaning behavior rather than the app failing to start.
+    let job = ProcessTreeJob::new();
+    if let Some(job) = &job {
+        let _ = job.add(&child);
+    }
+
     let stdin = child.stdin.take().expect("child stdin was not piped");
     let stdout = child.stdout.take().expect("child stdout was not piped");
     let stderr = child.stderr.take().expect("child stderr was not piped");
 
     app.manage(EngineHandle {
         stdin: Mutex::new(Some(stdin)),
+        _job: job,
     });
 
     let stdout_app = app.clone();
