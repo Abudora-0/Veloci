@@ -10,39 +10,14 @@ caller gets structured events without touching yt-dlp's internal API.
 from __future__ import annotations
 
 import asyncio
-import os
 import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Awaitable, Callable
 
+from veloci_engine.core.interpreter import subprocess_env, yt_dlp_command
 from veloci_engine.core.page_meta import fetch_page_meta
-
-# sys.executable inside a venv is a tiny launcher stub (see engine.rs's
-# base_interpreter()) that re-execs a second, separate python.exe under the
-# hood -- invisible to the creationflags below, so spawning
-# "sys.executable -m yt_dlp" would flash a fresh console on every single
-# video probed/downloaded, not just once at app startup. sys._base_executable
-# is the real interpreter binary; __PYVENV_LAUNCHER__ is the same env var
-# CPython's own stub sets internally, and passing it through keeps
-# sys.prefix/site-packages resolving to this venv even when invoking the
-# base interpreter directly (verified live: "import yt_dlp" still succeeds).
-_PYTHON_EXECUTABLE = getattr(sys, "_base_executable", sys.executable)
-
-# On Windows, a piped (non-console) stdout falls back to the system's OEM
-# codepage instead of UTF-8, so yt-dlp silently mangles non-ASCII characters
-# in anything it prints -- e.g. a title's "»" turns into a space. Harmless
-# for display, but it corrupts the exact bytes of the --print'd VELOCI_FILEPATH
-# line below, which we depend on to open the real file afterwards (the
-# downscale step). Forcing UTF-8 mode makes what we parse match the real
-# filename on disk.
-_UTF8_ENV = {
-    **os.environ,
-    "PYTHONUTF8": "1",
-    "PYTHONIOENCODING": "utf-8",
-    "__PYVENV_LAUNCHER__": sys.executable,
-}
 
 # Same root cause as the Rust side's CREATE_NO_WINDOW on the engine process
 # itself (see engine.rs): spawning a console-subsystem exe (yt-dlp/ffmpeg/
@@ -255,7 +230,7 @@ async def _run_yt_dlp(
         *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env=_UTF8_ENV,
+        env=subprocess_env(),
         **_NO_WINDOW_KWARGS,
     )
     if on_process_started is not None:
@@ -324,17 +299,15 @@ async def download_one(
     direct_url = _pick_direct_quality_url(quality, page_meta.quality_links)
 
     common_args = [
-        # Invoke yt-dlp as a module of the current interpreter rather than the
-        # "yt-dlp" console-script shim on PATH: when spawned this deep (Tauri
-        # -> uv run -> this process -> subprocess), the shim's venv-detection
-        # got confused and re-exec'd itself recursively forever (observed: 3-4
-        # nested yt-dlp.exe/python.exe layers, zero network connections, zero
-        # bytes written). Calling the already-correct interpreter directly
-        # sidesteps that shim entirely. _PYTHON_EXECUTABLE (not plain
-        # sys.executable) -- see its definition above for why.
-        _PYTHON_EXECUTABLE,
-        "-m",
-        "yt_dlp",
+        # In dev, invokes yt-dlp as a module of the current interpreter
+        # rather than the "yt-dlp" console-script shim on PATH: when spawned
+        # this deep (Tauri -> uv run -> this process -> subprocess), the
+        # shim's venv-detection got confused and re-exec'd itself recursively
+        # forever (observed: 3-4 nested yt-dlp.exe/python.exe layers, zero
+        # network connections, zero bytes written). In a frozen/bundled
+        # build, re-invokes this same executable instead -- see
+        # interpreter.py's yt_dlp_command() for why.
+        *yt_dlp_command(),
         # yt-dlp silently skips the whole progress-template ("download:") hook
         # when it doesn't think it's attached to an interactive terminal --
         # true for our piped subprocess stdout even with --newline (which

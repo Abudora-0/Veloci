@@ -102,6 +102,7 @@ from pathlib import Path
 
 from veloci_engine.core import downloader
 from veloci_engine.core.crawler import UnsupportedSiteError, crawl_listing
+from veloci_engine.core.interpreter import YTDLP_PASSTHROUGH_FLAG
 from veloci_engine.core.probe import ProbeResult, probe_many
 from veloci_engine.core.queue_db import QueueDB
 from veloci_engine.extractors.base import ExtractorError
@@ -551,4 +552,15 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    # A frozen build has no separate python.exe/yt-dlp.exe to hand work off
+    # to -- yt_dlp is already one of this package's own dependencies, so
+    # interpreter.py's yt_dlp_command() has downloader.py/probe.py re-invoke
+    # this exact executable with this sentinel flag instead. Checked first
+    # and unconditionally: this must never fall through into starting the
+    # engine (stdin dispatch loop, download/probe workers), since argv here
+    # is a yt-dlp command line, not a JSON-over-stdio session.
+    if len(sys.argv) > 1 and sys.argv[1] == YTDLP_PASSTHROUGH_FLAG:
+        import yt_dlp
+
+        sys.exit(yt_dlp.main(sys.argv[2:]))
     asyncio.run(main())

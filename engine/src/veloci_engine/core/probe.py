@@ -8,28 +8,13 @@ enough to report what would be downloaded.
 from __future__ import annotations
 
 import asyncio
-import os
 import re
 import sys
 from dataclasses import dataclass
 from typing import Awaitable, Callable
 
+from veloci_engine.core.interpreter import subprocess_env, yt_dlp_command
 from veloci_engine.core.page_meta import fetch_page_meta
-
-# See downloader.py's _PYTHON_EXECUTABLE/_UTF8_ENV: sys.executable is a venv
-# launcher stub whose internal re-exec hop would flash a fresh console on
-# every probe; __PYVENV_LAUNCHER__ keeps the real base interpreter resolving
-# to this venv's site-packages when invoked directly.
-_PYTHON_EXECUTABLE = getattr(sys, "_base_executable", sys.executable)
-
-# See downloader.py's _UTF8_ENV: piped stdout on Windows falls back to the
-# OEM codepage, mangling non-ASCII titles (e.g. "»" becomes a stray space).
-_UTF8_ENV = {
-    **os.environ,
-    "PYTHONUTF8": "1",
-    "PYTHONIOENCODING": "utf-8",
-    "__PYVENV_LAUNCHER__": sys.executable,
-}
 
 # See downloader.py's _NO_WINDOW_KWARGS: without this, every probe flashes a
 # fresh console window (yt-dlp is a console-subsystem exe spawned from our
@@ -68,9 +53,7 @@ class ProbeResult:
 
 async def probe_one(url: str) -> ProbeResult:
     args = [
-        _PYTHON_EXECUTABLE,
-        "-m",
-        "yt_dlp",
+        *yt_dlp_command(),
         "--simulate",
         "--socket-timeout", "30",
         "--no-playlist",
@@ -89,7 +72,7 @@ async def probe_one(url: str) -> ProbeResult:
         *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env=_UTF8_ENV,
+        env=subprocess_env(),
         **_NO_WINDOW_KWARGS,
     )
     try:

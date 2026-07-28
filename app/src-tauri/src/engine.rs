@@ -4,6 +4,7 @@
 //! "engine-event" Tauri events.
 
 use std::io::{BufRead, BufReader, Write};
+#[cfg(debug_assertions)]
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::Mutex;
@@ -15,10 +16,13 @@ pub struct EngineHandle {
     stdin: Mutex<Option<ChildStdin>>,
 }
 
+// Dev-only: CARGO_MANIFEST_DIR is baked in at compile time, which is exactly
+// why this whole path only works on this machine, in this exact folder --
+// see spawn_bundled_engine_process() below for the release-mode equivalent
+// that doesn't have that problem.
+#[cfg(debug_assertions)]
 fn engine_project_dir() -> PathBuf {
     // In dev, the engine lives at ../../engine relative to src-tauri.
-    // CARGO_MANIFEST_DIR is compiled in, so this doesn't depend on the
-    // process's current working directory at runtime.
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("..")
@@ -56,6 +60,7 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 // to *our* venv instead of the base install. Verified directly: with this
 // set, `sys.prefix` reports the venv path and `import yt_dlp` succeeds, with
 // zero new conhost.exe appearing.
+#[cfg(debug_assertions)]
 fn base_interpreter(venv_dir: &PathBuf) -> Option<PathBuf> {
     let cfg = std::fs::read_to_string(venv_dir.join("pyvenv.cfg")).ok()?;
     let home = cfg
@@ -67,7 +72,8 @@ fn base_interpreter(venv_dir: &PathBuf) -> Option<PathBuf> {
     candidate.exists().then_some(candidate)
 }
 
-fn spawn_engine_process() -> std::io::Result<Child> {
+#[cfg(debug_assertions)]
+fn spawn_dev_engine_process() -> std::io::Result<Child> {
     let venv_dir = engine_project_dir().join(".venv");
     let venv_python = venv_dir.join("Scripts").join("python.exe");
 
@@ -106,6 +112,51 @@ fn spawn_engine_process() -> std::io::Result<Child> {
     }
 
     command.spawn()
+}
+
+// Release builds bundle a PyInstaller-frozen, fully standalone build of the
+// same engine as a Tauri "sidecar" (see tauri.conf.json's bundle.externalBin
+// and src-tauri/binaries/) -- no Python, uv, or venv needed on the target
+// machine, unlike spawn_dev_engine_process() above which only works on this
+// exact machine (CARGO_MANIFEST_DIR is a compile-time absolute path). Tauri
+// installs sidecar binaries in the same directory as the main executable,
+// stripped of their build-time target-triple suffix.
+#[cfg(not(debug_assertions))]
+fn spawn_bundled_engine_process() -> std::io::Result<Child> {
+    let exe_dir = std::env::current_exe()?
+        .parent()
+        .expect("the running executable has no parent directory")
+        .to_path_buf();
+    let sidecar = exe_dir.join(if cfg!(windows) {
+        "veloci-engine.exe"
+    } else {
+        "veloci-engine"
+    });
+
+    let mut command = Command::new(sidecar);
+    command
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    command.spawn()
+}
+
+fn spawn_engine_process() -> std::io::Result<Child> {
+    #[cfg(debug_assertions)]
+    {
+        spawn_dev_engine_process()
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        spawn_bundled_engine_process()
+    }
 }
 
 pub fn start(app: &AppHandle) {

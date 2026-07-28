@@ -53,7 +53,7 @@ Veloci is a Tauri desktop app that scans listing/gallery pages, builds a persist
 - [uv](https://docs.astral.sh/uv/) (Python package/venv manager) with Python 3.11+
 - [ffmpeg](https://ffmpeg.org/) on `PATH` (only needed for the local re-encode fallback path)
 
-### Setup
+### Setup (development)
 
 ```bash
 # Python engine
@@ -66,12 +66,29 @@ npm install
 npm run tauri dev
 ```
 
-A production build (installer + standalone executable) is produced with:
+`npm run tauri dev` talks to the engine straight out of `engine/.venv` — fast to iterate on, but only works on a machine with that exact `uv`-managed environment set up, which is exactly why a dev build isn't what gets distributed (see below).
+
+### Building a portable release
+
+A release build bundles the engine as a self-contained sidecar executable (via [PyInstaller](https://pyinstaller.org/)), so the installed app needs neither Python nor `uv` on the machine it runs on. Freeze it first, then build:
 
 ```bash
-cd app
+# 1. Freeze the engine into a standalone executable
+cd engine
+uv sync
+uv run pyinstaller --onefile --name veloci-engine --distpath dist src/veloci_engine/cli.py
+
+# 2. Place it where Tauri expects a sidecar source (name must include your target triple --
+#    find yours with `rustc --print host-tuple`, e.g. x86_64-pc-windows-msvc)
+cp dist/veloci-engine.exe ../app/src-tauri/binaries/veloci-engine-x86_64-pc-windows-msvc.exe
+
+# 3. Build the installer -- Tauri copies the sidecar in and strips the target-triple suffix
+cd ../app
+npm install
 npm run tauri build
 ```
+
+The installer (`.msi`/`-setup.exe`, under `app/src-tauri/target/release/bundle/`) is then fully self-contained.
 
 ## Project layout
 
