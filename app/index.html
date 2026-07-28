@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Veloci</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <!-- ambient background: drifting aurora orbs + telemetry grid -->
+    <div class="bg-fx" aria-hidden="true">
+      <div class="orb orb-a"></div>
+      <div class="orb orb-b"></div>
+      <div class="grid-overlay"></div>
+    </div>
+
+    <!-- frameless-window title bar (drag region + window controls) -->
+    <div class="titlebar" data-tauri-drag-region>
+      <span class="titlebar-text" data-tauri-drag-region>VELOCI // MASS MEDIA CONSOLE</span>
+      <div class="win-controls">
+        <button id="win-min" class="win-btn" title="Minimize" aria-label="Minimize">
+          <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true"><path d="M4.5 10h11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </button>
+        <button id="win-max" class="win-btn" title="Maximize" aria-label="Maximize">
+          <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+        </button>
+        <button id="win-close" class="win-btn win-btn-close" title="Close" aria-label="Close">
+          <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true"><path d="M5.5 5.5l9 9m0-9-9 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="app-frame">
+      <!-- ============ sidebar ============ -->
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <!-- Veloci mark: three accelerating chevrons collapsing into a V -->
+            <svg viewBox="0 0 48 48" width="30" height="30">
+              <path class="chev chev-1" d="M8 8 L24 20 L40 8" fill="none" stroke="currentColor" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.3" />
+              <path class="chev chev-2" d="M11 19 L24 29 L37 19" fill="none" stroke="currentColor" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.62" />
+              <path class="chev chev-3" d="M15 30 L24 38 L33 30" fill="none" stroke="currentColor" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </div>
+          <div class="brand-text">
+            <h1>VELOCI</h1>
+            <span class="tagline">Mass Downloader</span>
+          </div>
+        </div>
+
+        <nav class="nav" id="nav">
+          <span class="nav-section-label">Library</span>
+          <button class="nav-item active" data-filter="all">
+            <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M3.5 5.5h13M3.5 10h13m-13 4.5h13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span class="nav-label">All Videos</span>
+            <span class="nav-count" id="nav-count-all">0</span>
+          </button>
+          <button class="nav-item" data-filter="queued">
+            <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><circle cx="10" cy="10" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 6.8V10l2.3 2.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span class="nav-label">Queued</span>
+            <span class="nav-count" id="nav-count-queued">0</span>
+          </button>
+          <button class="nav-item" data-filter="downloading">
+            <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 16.5h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="nav-label">Active</span>
+            <span class="nav-count" id="nav-count-downloading">0</span>
+          </button>
+          <button class="nav-item" data-filter="done">
+            <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="m4 10.5 4 4 8-9" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="nav-label">Completed</span>
+            <span class="nav-count" id="nav-count-done">0</span>
+          </button>
+          <button class="nav-item" data-filter="paused">
+            <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><rect x="5.5" y="4" width="3" height="12" rx="1" fill="currentColor"/><rect x="11.5" y="4" width="3" height="12" rx="1" fill="currentColor"/></svg>
+            <span class="nav-label">Paused</span>
+            <span class="nav-count" id="nav-count-paused">0</span>
+          </button>
+          <button class="nav-item" data-filter="issues">
+            <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M10 3 2.5 16.5h15L10 3Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 8.2v3.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="14" r="0.9" fill="currentColor"/></svg>
+            <span class="nav-label">Issues</span>
+            <span class="nav-count" id="nav-count-issues">0</span>
+          </button>
+        </nav>
+
+        <div class="session-block">
+          <span class="nav-section-label">Session</span>
+          <div class="sparkline-wrap" title="Throughput over the last 48 seconds">
+            <svg id="sparkline" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
+              <polygon id="sparkline-fill" points="" />
+              <polyline id="sparkline-line" points="" fill="none" />
+            </svg>
+          </div>
+          <div class="session-stat">
+            <span class="session-stat-label">Throughput</span>
+            <span class="session-stat-value" id="stat-speed">0 B/s</span>
+          </div>
+          <div class="session-stat">
+            <span class="session-stat-label">Peak</span>
+            <span class="session-stat-value session-stat-secondary" id="stat-peak">-</span>
+          </div>
+          <div class="session-stat">
+            <span class="session-stat-label">Total size</span>
+            <span class="session-stat-value session-stat-secondary" id="stat-size">-</span>
+          </div>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="theme-picker" id="theme-picker" aria-label="Accent theme">
+            <button class="theme-dot active" data-theme="volt" style="--dot: #c8ff3d" title="Volt"></button>
+            <button class="theme-dot" data-theme="cyan" style="--dot: #3de8ff" title="Cyan"></button>
+            <button class="theme-dot" data-theme="magenta" style="--dot: #ff4dd8" title="Magenta"></button>
+            <button class="theme-dot" data-theme="amberfire" style="--dot: #ffb13d" title="Amber"></button>
+            <button class="theme-dot" data-theme="violetstorm" style="--dot: #a06bff" title="Violet"></button>
+          </div>
+          <span class="engine-status" id="engine-status" data-state="starting">
+            <span class="engine-dot"></span>
+            <span id="engine-status-text">Engine starting…</span>
+          </span>
+        </div>
+      </aside>
+
+      <!-- ============ main column ============ -->
+      <main class="main">
+        <header class="topbar">
+          <div class="scan-bar">
+            <svg class="scan-bar-icon" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+              <path d="M13.5 13.5 18 18M9 15a6 6 0 1 1 0-12 6 6 0 0 1 0 12Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+            <input id="listing-url" placeholder="Paste a listing URL and press Enter to scan…" autocomplete="off" spellcheck="false" />
+            <input id="pages-range" placeholder="Pages" autocomplete="off" spellcheck="false"
+              title="Scan a whole page range in one go, e.g. 1-5 or 2-10. Empty = just the pasted page. Works on sites with /page/N/ URLs." />
+            <button id="fetch-btn" type="button" class="btn btn-accent">Scan</button>
+          </div>
+        </header>
+
+        <section class="toolbar">
+          <label class="field field-dest" for="dest-dir">
+            <span class="field-label">Destination</span>
+            <div class="dest-row">
+              <input id="dest-dir" placeholder="D:\Downloads\Veloci" autocomplete="off" spellcheck="false" />
+              <button id="browse-btn" type="button" class="btn btn-ghost btn-browse" title="Choose the download folder">
+                <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h3l1.5 2h6.5A1.5 1.5 0 0 1 17 8.5v5A1.5 1.5 0 0 1 15.5 15h-11A1.5 1.5 0 0 1 3 13.5v-7Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" /></svg>
+                Browse
+              </button>
+            </div>
+          </label>
+          <label class="field field-narrow" for="concurrency">
+            <span class="field-label">Parallel</span>
+            <input id="concurrency" type="number" min="1" max="16" value="4" />
+          </label>
+          <label class="field field-narrow" for="rate-limit" title="Speed cap per download in MB/s, so the connection stays usable while a queue runs. Empty = unlimited.">
+            <span class="field-label">Limit MB/s</span>
+            <input id="rate-limit" type="number" min="0" step="0.1" placeholder="∞" />
+          </label>
+          <label class="field field-narrow" for="quality-select" title="Sites with a real quality ladder respect this; single-quality sites get re-encoded down locally with ffmpeg">
+            <span class="field-label">Quality</span>
+            <select id="quality-select">
+              <option value="best" selected>Best</option>
+              <option value="1080p">1080p</option>
+              <option value="720p">720p</option>
+              <option value="480p">480p</option>
+              <option value="360p">360p</option>
+              <option value="worst">Worst</option>
+            </select>
+          </label>
+          <div class="control-actions">
+            <button id="download-btn" type="button" class="btn btn-primary">
+              <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M10 3v10m0 0 4-4m-4 4-4-4M4 16h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              Download All
+            </button>
+            <button id="pause-btn" type="button" class="btn btn-ghost">
+              <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><rect x="5" y="4" width="3.4" height="12" rx="1" fill="currentColor" /><rect x="11.6" y="4" width="3.4" height="12" rx="1" fill="currentColor" /></svg>
+              Pause All
+            </button>
+            <button id="retry-failed-btn" type="button" class="btn btn-ghost">
+              <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.76-4.24M16 3v3.5h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              Retry Failed
+            </button>
+            <button id="clear-btn" type="button" class="btn btn-ghost">
+              <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M5 6h10M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6m-7 0 .6 9.4a1 1 0 0 0 1 .9h5.8a1 1 0 0 0 1-.9L15 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              Clear
+            </button>
+          </div>
+        </section>
+
+        <div class="list-toolbar">
+          <p id="status-msg"></p>
+          <div class="search-box">
+            <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><path d="M13.5 13.5 17 17M9 14a5 5 0 1 1 0-10 5 5 0 0 1 0 10Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
+            <input id="search-input" placeholder="Filter videos…  ( / )" autocomplete="off" spellcheck="false" />
+          </div>
+        </div>
+
+        <section class="panel list-panel">
+          <div class="list-header" role="row">
+            <span class="col-index">#</span>
+            <span class="col-title">Title</span>
+            <span class="col-size">Size</span>
+            <span class="col-duration">Length</span>
+            <span class="col-progress">Progress</span>
+            <span class="col-status">Status</span>
+            <span class="col-actions">Actions</span>
+          </div>
+          <div id="video-list" class="video-list"></div>
+          <div id="empty-state" class="empty-state">
+            <svg viewBox="0 0 48 48" width="44" height="44" aria-hidden="true">
+              <path d="M8 8 L24 20 L40 8" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.25" />
+              <path d="M11 19 L24 29 L37 19" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.5" />
+              <path d="M15 30 L24 38 L33 30" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.8" />
+            </svg>
+            <p id="empty-state-text">Paste a listing URL above and hit Scan to get started.</p>
+          </div>
+          <div id="pagination-bar" class="pagination-bar">
+            <span id="pagination-info" class="pagination-info">0 videos</span>
+            <div class="pagination-controls">
+              <label class="page-size-field" for="page-size-select">
+                <span>Rows</span>
+                <select id="page-size-select">
+                  <option value="50" selected>50</option>
+                  <option value="100">100</option>
+                  <option value="200">200</option>
+                  <option value="500">500</option>
+                </select>
+              </label>
+              <button id="page-first-btn" type="button" class="btn btn-ghost btn-page" title="First page">
+                <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5M6 4.5v11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              </button>
+              <button id="page-prev-btn" type="button" class="btn btn-ghost btn-page" title="Previous page">
+                <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              </button>
+              <span id="page-indicator" class="page-indicator">Page 1 of 1</span>
+              <button id="page-next-btn" type="button" class="btn btn-ghost btn-page" title="Next page">
+                <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true"><path d="m7.5 4.5 5.5 5.5-5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              </button>
+              <button id="page-last-btn" type="button" class="btn btn-ghost btn-page" title="Last page">
+                <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true"><path d="m7.5 4.5 5.5 5.5-5.5 5.5M14 4.5v11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
+  </body>
+</html>
