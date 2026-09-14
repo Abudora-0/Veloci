@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Veloci: mass media console</title>
+<meta name="description" content="Veloci scans listing pages, builds a persistent download queue, and pulls everything down in parallel through a yt-dlp-powered engine. A fast, themed desktop app for bulk jobs." />
+<link rel="icon" href="assets/logo.png" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="bg-fx" aria-hidden="true">
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="grid-overlay"></div>
+</div>
+
+<div class="page">
+
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 5l8 6-8 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+            <path d="M11 5l8 6-8 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span class="brand-name">VELOCI</span>
+      </div>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#how-it-works">How it works</a>
+        <a href="#themes">Themes</a>
+        <a href="https://github.com/Abudora-0/Veloci" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+      <div class="nav-cta">
+        <a class="btn btn-ghost btn-sm" href="https://github.com/Abudora-0/Veloci" target="_blank" rel="noopener">View source</a>
+        <a class="btn btn-primary btn-sm" href="https://github.com/Abudora-0/Veloci/releases" target="_blank" rel="noopener">Download</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <span class="eyebrow">Mass media console</span>
+          <h1>Point it at a page.<br>Walk away with <em>everything</em>.</h1>
+          <p class="hero-sub">Veloci scans listing and gallery pages, builds a persistent download queue, and pulls every video down in parallel through a yt-dlp-powered engine. Give it a page, or a whole range of them, and manage the rest from one queue.</p>
+          <div class="badges">
+            <span class="badge">Windows</span>
+            <span class="badge">Tauri 2</span>
+            <span class="badge">Rust</span>
+            <span class="badge">TypeScript</span>
+            <span class="badge">Python</span>
+            <span class="badge">MIT</span>
+          </div>
+          <div class="hero-ctas">
+            <a class="btn btn-primary" href="https://github.com/Abudora-0/Veloci/releases" target="_blank" rel="noopener">Download for Windows <span class="hint">(free, MIT)</span></a>
+            <a class="btn btn-ghost" href="https://github.com/Abudora-0/Veloci" target="_blank" rel="noopener">View source</a>
+          </div>
+        </div>
+
+        <div class="console glass" id="console" aria-hidden="true">
+          <div class="console-bar">
+            <span class="console-bar-title">VELOCI // MASS MEDIA CONSOLE</span>
+            <span class="console-dots"><span></span><span></span><span></span></span>
+          </div>
+          <div class="console-body">
+            <div class="console-rail">
+              <div class="console-rail-item is-active"><span>All Videos</span><b data-count="all">0</b></div>
+              <div class="console-rail-item"><span>Queued</span><b data-count="queued">0</b></div>
+              <div class="console-rail-item"><span>Active</span><b data-count="active">0</b></div>
+              <div class="console-rail-item"><span>Completed</span><b data-count="completed">0</b></div>
+              <div class="console-rail-item"><span>Paused</span><b data-count="paused">0</b></div>
+              <div class="console-rail-item"><span>Issues</span><b data-count="issues">0</b></div>
+            </div>
+            <div class="console-main">
+              <div class="console-scanbar">
+                <span class="caret" data-typed></span><span class="cursor"></span>
+                <span class="scan-btn" data-scan-btn>Scan</span>
+              </div>
+              <div class="console-table" data-rows>
+                <div class="console-row is-loading" data-title="page_index_001.mp4" data-size="184 MB" data-len="06:42">
+                  <span class="thumb"></span><span class="title"></span><span class="size"></span><span class="len"></span>
+                  <div class="bar"><i></i></div>
+                </div>
+                <div class="console-row is-loading" data-title="page_index_002.mp4" data-size="97 MB" data-len="03:11">
+                  <span class="thumb"></span><span class="title"></span><span class="size"></span><span class="len"></span>
+                  <div class="bar"><i></i></div>
+                </div>
+                <div class="console-row is-loading" data-title="page_index_003.mp4" data-size="256 MB" data-len="09:04">
+                  <span class="thumb"></span><span class="title"></span><span class="size"></span><span class="len"></span>
+                  <div class="bar"><i></i></div>
+                </div>
+                <div class="console-row is-loading" data-title="page_index_004.mp4" data-size="61 MB" data-len="02:20">
+                  <span class="thumb"></span><span class="title"></span><span class="size"></span><span class="len"></span>
+                  <div class="bar"><i></i></div>
+                </div>
+              </div>
+              <div class="console-session">
+                <span><span class="dot"></span>Engine online</span>
+                <span>Throughput <b data-throughput>0 B/s</b></span>
+                <span>Total <b data-total>0 MB</b></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="ticker" aria-hidden="true">
+      <div class="ticker-track">
+        <span>CONCURRENT DOWNLOADS <span class="sep">›</span></span>
+        <span>QUALITY: BEST → WORST <span class="sep">›</span></span>
+        <span>DUPLICATE-SAFE QUEUE <span class="sep">›</span></span>
+        <span>FIVE ACCENT THEMES <span class="sep">›</span></span>
+        <span>MULTI-PAGE SCANNING <span class="sep">›</span></span>
+        <span>PAUSE / RESUME / CANCEL <span class="sep">›</span></span>
+        <span>CONCURRENT DOWNLOADS <span class="sep">›</span></span>
+        <span>QUALITY: BEST → WORST <span class="sep">›</span></span>
+        <span>DUPLICATE-SAFE QUEUE <span class="sep">›</span></span>
+        <span>FIVE ACCENT THEMES <span class="sep">›</span></span>
+        <span>MULTI-PAGE SCANNING <span class="sep">›</span></span>
+        <span>PAUSE / RESUME / CANCEL <span class="sep">›</span></span>
+      </div>
+    </div>
+
+    <section id="features">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">Features</span>
+          <h2>Built for bulk jobs, not one video at a time</h2>
+          <p>Every control in the app is there because a queue of hundreds of videos needs it. Nothing here is decorative.</p>
+        </div>
+        <div class="feature-grid">
+
+          <div class="feature-card glass">
+            <span class="feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <h3>Multi-page scanning</h3>
+            <p>Scan a single page or a full range like <code>1-20</code> in one go, and let it discover every video across all of them.</p>
+          </div>
+
+          <div class="feature-card glass">
+            <span class="feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M6 4v16M12 4v16M18 4v16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <h3>Concurrent downloads</h3>
+            <p>Configurable parallelism with an optional per-download speed cap, so one job never chokes the rest of your connection.</p>
+          </div>
+
+          <div class="feature-card glass">
+            <span class="feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h10M4 18h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="17" cy="6" r="2" fill="currentColor"/><circle cx="8" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="18" r="2" fill="currentColor"/></svg></span>
+            <h3>Quality selection</h3>
+            <p>Best down to Worst, with a direct CDN fast-path that skips re-encoding wherever a site exposes real per-quality files.</p>
+          </div>
+
+          <div class="feature-card glass">
+            <span class="feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M8 5v14l11-7z" fill="currentColor"/><rect x="4" y="5" width="2" height="14" fill="currentColor"/></svg></span>
+            <h3>Pause / resume / cancel</h3>
+            <p>Per video or across the whole queue. IDM-style control over every job, at any point, without losing progress.</p>
+          </div>
+
+          <div class="feature-card glass">
+            <span class="feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l7 4v10l-7 4-7-4V7z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <h3>Duplicate detection</h3>
+            <p>A SQLite-backed queue remembers what's already been downloaded across sessions, so re-scanning never re-queues known videos.</p>
+          </div>
+
+          <div class="feature-card glass">
+            <span class="feature-icon"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M3 9h18" stroke="currentColor" stroke-width="2"/></svg></span>
+            <h3>Rich metadata</h3>
+            <p>Thumbnails, titles, duration, and file size are probed and streamed into the queue as they resolve.</p>
+          </div>
+
+          <div class="feature-card glass">
+            <span class="feature-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="10" cy="10" r="6" stroke="currentColor" stroke-width="2"/><path d="M14.5 14.5L20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <h3>Search, filters, pagination</h3>
+            <p>Find anything in a queue of hundreds of videos without the UI breaking a sweat.</p>
+          </div>
+
+          <div class="feature-card glass">
+            <span class="feature-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 3a9 9 0 000 18" stroke="currentColor" stroke-width="2"/></svg></span>
+            <h3>Themed UI</h3>
+            <p>A custom dark "glass" interface with five accent themes, built from scratch. No OS-native form controls.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <section id="how-it-works">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">How it works</span>
+          <h2>One pipeline, four stages</h2>
+          <p>The same loop runs whether you paste one page or a range of twenty.</p>
+        </div>
+        <div class="pipeline" data-pipeline>
+          <div class="pipeline-line" data-pipeline-line><i></i></div>
+
+          <div class="pipeline-step">
+            <span class="pipeline-node"><svg viewBox="0 0 24 24" fill="none"><circle cx="10" cy="10" r="6" stroke="currentColor" stroke-width="2"/><path d="M14.5 14.5L20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <h3>Scan</h3>
+            <p>Point it at a listing page or a page range. It crawls and discovers every video.</p>
+          </div>
+
+          <div class="pipeline-step">
+            <span class="pipeline-node"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <h3>Queue</h3>
+            <p>Every video lands in a persistent, SQLite-backed queue. Duplicates are skipped automatically.</p>
+          </div>
+
+          <div class="pipeline-step">
+            <span class="pipeline-node"><svg viewBox="0 0 24 24" fill="none"><path d="M12 4v11m0 0l-4-4m4 4l4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 18h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <h3>Fetch</h3>
+            <p>The yt-dlp-powered engine pulls each item down in parallel, at the quality you picked.</p>
+          </div>
+
+          <div class="pipeline-step">
+            <span class="pipeline-node"><svg viewBox="0 0 24 24" fill="none"><path d="M4 7l2-3h5l1 2h8v11a1 1 0 01-1 1H5a1 1 0 01-1-1z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></span>
+            <h3>Save</h3>
+            <p>Lands in your chosen folder, marked complete, and remembered for next time.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="themes">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">Make it yours</span>
+          <h2>Five accent themes. Try them right here.</h2>
+          <p>This isn't a preview graphic: these swatches are the app's real theme tokens. Pick one and this whole page recolors, scrollbar included.</p>
+        </div>
+        <div class="theme-panel glass">
+          <div class="swatches" data-theme-switcher>
+            <button class="swatch is-active" data-theme-value="default" aria-pressed="true">
+              <span class="swatch-dot" style="background:#c8ff3d"></span>Lime
+            </button>
+            <button class="swatch" data-theme-value="cyan" aria-pressed="false">
+              <span class="swatch-dot" style="background:#3de8ff"></span>Cyan
+            </button>
+            <button class="swatch" data-theme-value="magenta" aria-pressed="false">
+              <span class="swatch-dot" style="background:#ff4dd8"></span>Magenta
+            </button>
+            <button class="swatch" data-theme-value="amberfire" aria-pressed="false">
+              <span class="swatch-dot" style="background:#ffb13d"></span>Amberfire
+            </button>
+            <button class="swatch" data-theme-value="violetstorm" aria-pressed="false">
+              <span class="swatch-dot" style="background:#a06bff"></span>Violetstorm
+            </button>
+          </div>
+          <div class="theme-preview glass">
+            <div class="theme-preview-row">
+              <span class="chip">Download All</span>
+              <div class="bar-demo"><i></i></div>
+            </div>
+            <div class="theme-preview-row">
+              <span class="ring" aria-hidden="true"></span>
+              <span style="font-family:var(--mono); font-size:0.8rem; color:var(--text-dim)">Applying to sidebar, buttons, progress, scrollbar…</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="screenshot">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">The real thing</span>
+          <h2>No OS-native form controls</h2>
+          <p>Every dropdown, button, and progress bar is hand-built for this theme. This is an actual screenshot, not a mockup.</p>
+        </div>
+        <div class="showcase" data-tilt>
+          <div class="showcase-frame">
+            <img src="assets/screenshot.png" alt="Veloci desktop app UI, showing the video queue console" loading="lazy" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="architecture">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">Under the hood</span>
+          <h2>A Rust shell, a Python engine, one queue</h2>
+          <p>The desktop shell and the download engine are two processes that talk over stdio. Neither one needs the other's runtime installed on the machine that runs it.</p>
+        </div>
+        <div class="arch">
+          <div class="arch-node glass">
+            <span class="k">Desktop shell</span>
+            <h3>Tauri 2 + Rust</h3>
+            <p>Frameless window, custom titlebar, and process lifecycle: it starts, supervises, and kills the engine's process tree.</p>
+          </div>
+          <div class="arch-node glass">
+            <span class="k">Download engine</span>
+            <h3>Python + yt-dlp</h3>
+            <p>httpx and selectolax do the crawling; yt-dlp does the fetching. Frozen with PyInstaller into a Tauri sidecar for distribution.</p>
+          </div>
+          <div class="arch-node glass">
+            <span class="k">Persistence</span>
+            <h3>SQLite queue</h3>
+            <p>Every job, status, and piece of metadata survives a restart, which is what makes duplicate detection possible.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-row">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true" style="width:26px;height:26px;border-radius:7px">
+          <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px">
+            <path d="M4 5l8 6-8 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+            <path d="M11 5l8 6-8 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span class="footer-tagline">Veloci, MIT licensed</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/Abudora-0/Veloci" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/Abudora-0/Veloci/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/Abudora-0/Veloci/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+      </div>
+      <span class="footer-tagline">Built with Tauri + Rust + Python</span>
+    </div>
+  </footer>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
