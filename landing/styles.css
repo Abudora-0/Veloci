@@ -1252,8 +1252,3 @@ h1, h2, h3 {
   }
 }
 
-@media (max-width: 480px) {
-  .hero-ctas .btn span.hint {
-    display: none;
-  }
-}
