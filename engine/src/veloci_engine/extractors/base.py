@@ -15,8 +15,10 @@ from typing import Iterator, Protocol, runtime_checkable
 class Extractor(Protocol):
     """Interface every site plugin must satisfy."""
 
-    #: Domain(s) this extractor is responsible for, e.g. {"rule34video.com"}.
-    domains: frozenset[str]
+    #: Domain(s) this extractor is responsible for, e.g. {"example.com"}.
+    #: None means domain-agnostic (see the fallback extractor): matches()
+    #: is authoritative in that case, not this attribute.
+    domains: frozenset[str] | None
 
     def matches(self, url: str) -> bool:
         """Return True if this extractor can handle the given listing URL."""

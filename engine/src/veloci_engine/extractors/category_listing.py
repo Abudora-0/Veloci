@@ -1,24 +1,23 @@
-"""fap-nation.org extractor.
+"""Extractor for a WordPress category-listing site (tagDiv Newspaper theme).
 
-Verified against a real fetch of https://fap-nation.org/category/animation-porn/
-(with a full browser User-Agent, since a bare/minimal one gets Cloudflare-403'd).
-Confirmed from the real page:
+Verified against a real fetch of a live category listing page on the
+supported site (with a full browser User-Agent, since a bare/minimal one
+gets Cloudflare-403'd). Confirmed from the real page:
   - Individual video posts are single root-level slugs, e.g.
-    /rouges-plan-rouge-the-bat-animation-cartoonsaur/ (WordPress default
-    permalink structure), including percent-encoded/unicode titles.
+    /some-post-title-slug/ (WordPress default permalink structure),
+    including percent-encoded/unicode titles.
   - Listing/taxonomy links live under /category/, /tag/, /advanced-search,
     which we exclude rather than positively match, since the real slug
     shape has no fixed pattern.
   - Pagination uses <link rel="next" href=".../page/2/">, i.e. WordPress's
     default /page/N/ scheme, matching common.py's default_next_page.
-  - The theme (tagDiv Newspaper) renders a category page as several
-    side-by-side "blocks": a "POPULAR ANIMATION" widget (top-7-days,
-    fixed limit) and a cross-category promo (e.g. "HENTAI") alongside the
-    real "LATEST ANIMATION" post grid -- confirmed on
-    /category/animation-porn/page/2/, where Popular+Hentai contributed 12
-    of 35 raw candidates, all identical to what page/3/ also shows, since
-    "popular this week" and the promo widget don't change per page.
-    Scoped extraction to just the "LATEST ..." block's container.
+  - The theme renders a category page as several side-by-side "blocks": a
+    "POPULAR" widget (top-7-days, fixed limit) and a cross-category promo
+    block alongside the real "LATEST ..." post grid -- confirmed on a
+    real page 2, where the Popular+promo blocks contributed a third of
+    the raw candidates, all identical to what page 3 also shows, since
+    neither block's contents change per page. Scoped extraction to just
+    the "LATEST ..." block's container.
 """
 
 from __future__ import annotations
@@ -64,7 +63,7 @@ _EXCLUDED_PREFIXES = (
 VIDEO_URL_PATTERN = r"^/(?!" + "|".join(p.lstrip("/") for p in _EXCLUDED_PREFIXES) + r")[^/]+/?$"
 
 EXTRACTOR = GenericListingExtractor(
-    name="fapnation",
+    name="category_listing",
     domains={"fap-nation.org"},
     video_url_pattern=VIDEO_URL_PATTERN,
     anchor_scope=_latest_block_anchors,

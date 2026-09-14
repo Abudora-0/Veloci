@@ -1,17 +1,17 @@
 """Shared post-page scraping: poster image + direct per-quality download
 links that yt-dlp's generic <video>/<source> scraper never sees.
 
-Confirmed live on fap-nation.org: the embedded player yt-dlp finds points at
-an entirely different, single-fixed-quality mirror (fappingstream.com),
-while the page's own "DOWNLOAD" buttons are plain <a href> links (not
+Confirmed live on one supported site: the embedded player yt-dlp finds
+points at an entirely different, single-fixed-quality mirror, while the
+page's own "DOWNLOAD" buttons are plain <a href> links (not
 <video>/<source> tags, so yt-dlp's scraper skips them) pointing directly at
 a real per-quality CDN -- e.g.
 https://vz-8e56367c-501.b-cdn.net/<id>/play_360p.mp4, .../play_480p.mp4,
 .../play_720p.mp4 -- confirmed independently downloadable (200, real
 Content-Length, no Referer needed). Using these directly means an exact-
 quality file with no local re-encode required, versus downloading the
-fappingstream.com master and re-encoding it down with ffmpeg (the
-multi-minute wait users were hitting for anything other than "best").
+single-fixed-quality mirror's master and re-encoding it down with ffmpeg
+(the multi-minute wait users were hitting for anything other than "best").
 
 One HTTP fetch serves both probe.py (thumbnail) and downloader.py (quality
 links) -- previously each did its own separate fetch, doubling probe

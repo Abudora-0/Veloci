@@ -63,8 +63,8 @@ _QUALITY_FORMAT_SELECTORS: dict[str, str | None] = {
 
 # The format selector above is a no-op on sites that only ever expose one
 # fixed-quality direct file with no reported height at all (confirmed via
-# `yt-dlp -F` against fap-nation/futapo: exactly one "unknown resolution"
-# format per video) -- there's nothing lower to select. For those, the only
+# `yt-dlp -F` against a couple of the supported sites: exactly one "unknown
+# resolution" format per video) -- there's nothing lower to select. For those, the only
 # way "480p" etc. actually shrinks the file is re-encoding it locally after
 # download. "worst" has no fixed target height (it just means "whatever
 # yt-dlp picked as smallest," which may still be the only format), so it's
@@ -82,8 +82,8 @@ ProgressCallback = Callable[[str, dict], "Awaitable[None] | None"]
 
 # Some sites' own "DOWNLOAD" buttons on the post page link directly to a
 # real per-quality CDN file that yt-dlp's generic <video>/<source> scraper
-# never discovers (see page_meta.py) -- confirmed on fap-nation.org, where
-# yt-dlp instead finds an unrelated single-fixed-quality mirror. When the
+# never discovers (see page_meta.py) -- confirmed on one supported site,
+# where yt-dlp instead finds an unrelated single-fixed-quality mirror. When the
 # requested quality has a matching direct link, using it outright skips the
 # multi-minute local ffmpeg re-encode entirely (exact file, no transcode).
 def _pick_direct_quality_url(quality: str, quality_links: dict[int, str]) -> str | None:
@@ -365,13 +365,13 @@ async def download_one(
         # Some listing/video pages also embed a few seconds of muted preview
         # clips for other/related videos alongside the real one; yt-dlp's
         # generic extractor picks those up too, so drop anything under 20s
-        # (confirmed against a real fap-nation.org page: main video was 153s,
-        # incidental previews were 4-5.6s). ">?" lets unknown-duration
-        # entries through instead of dropping them.
+        # (confirmed against a real page on one supported site: main video
+        # was 153s, incidental previews were 4-5.6s). ">?" lets
+        # unknown-duration entries through instead of dropping them.
         #
         # Same generic extractor also picks up in-page ad banners as their
         # own playlist entries when a post embeds multiple <video> tags
-        # (confirmed on fap-nation.org: every post page also serves 4 ad
+        # (confirmed on that same site: every post page also serves 4 ad
         # clips this way alongside the real video). All four sampled ads
         # were either named with "banner" or were GIF-loop ads re-encoded
         # to ".gif.mp4" for autoplay -- a pattern real content never
@@ -394,20 +394,3 @@ async def download_one(
         filepath = str(await _downscale_if_needed(Path(filepath), target_height))
 
     return DownloadResult(url=url, success=True, dest_path=filepath)
-
-
-async def run_pool(
-    urls: list[str],
-    dest_dir: Path,
-    *,
-    concurrency: int = 4,
-    on_progress: ProgressCallback | None = None,
-) -> list[DownloadResult]:
-    """Download urls with at most `concurrency` yt-dlp subprocesses running at once."""
-    semaphore = asyncio.Semaphore(concurrency)
-
-    async def _bounded(url: str) -> DownloadResult:
-        async with semaphore:
-            return await download_one(url, dest_dir, on_progress=on_progress)
-
-    return await asyncio.gather(*(_bounded(url) for url in urls))

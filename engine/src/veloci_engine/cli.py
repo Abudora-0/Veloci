@@ -52,8 +52,8 @@ Commands in (stdin, one JSON object per line):
 `quality` is one of "best" (default), "1080p", "720p", "480p", "360p",
 "worst" -- see downloader.py's _QUALITY_FORMAT_SELECTORS. Most of these
 sites serve one direct file per video with no real quality ladder, so this
-is mainly useful for sites (like rule34video.com) that actually offer
-multiple resolutions; elsewhere it's a no-op fallback to whatever's there.
+is mainly useful for sites that actually offer multiple resolutions;
+elsewhere it's a no-op fallback to whatever's there.
 
 Events out (stdout, one JSON object per line):
   {"event": "crawled_urls", "listing_url": "...", "found": N, "added": N, "urls": [...],

@@ -1,4 +1,4 @@
-"""rule34video.com extractor.
+"""Extractor for a tag/category-browsable tube-site template.
 
 UNVERIFIED against the live site (no network access in this sandbox).
 Assumption: video pages live at /video/<id>/<slug>/, which is the
@@ -17,7 +17,7 @@ from veloci_engine.extractors.common import GenericListingExtractor
 VIDEO_URL_PATTERN = r"^/video/\d+/"
 
 EXTRACTOR = GenericListingExtractor(
-    name="rule34video",
+    name="tagged_video_listing",
     domains={"rule34video.com"},
     video_url_pattern=VIDEO_URL_PATTERN,
 )

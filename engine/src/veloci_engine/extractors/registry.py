@@ -6,8 +6,6 @@ needs to change to add a site.
 
 from __future__ import annotations
 
-from urllib.parse import urlparse
-
 from veloci_engine.extractors.base import Extractor
 
 _REGISTRY: list[Extractor] = []
@@ -18,17 +16,23 @@ def register(extractor: Extractor) -> None:
 
 
 def find_extractor(url: str) -> Extractor | None:
-    host = urlparse(url).netloc.lower().removeprefix("www.")
+    # matches() alone is authoritative -- GenericListingExtractor's own
+    # implementation already checks `host in domains` for a fixed-domain
+    # extractor and returns True unconditionally for the domain-agnostic
+    # fallback (domains=None), so there's nothing to add here.
     for extractor in _REGISTRY:
-        if host in extractor.domains or extractor.matches(url):
+        if extractor.matches(url):
             return extractor
     return None
 
 
 def _load_builtin_extractors() -> None:
-    from veloci_engine.extractors import fapnation, futapo, rule34video
+    from veloci_engine.extractors import category_listing, embedded_gallery, fallback, tagged_video_listing
 
-    for module in (rule34video, fapnation, futapo):
+    # Order matters: find_extractor() returns the first match, so the tuned,
+    # site-specific extractors must all be tried before the domain-agnostic
+    # fallback (which matches every URL) gets a chance.
+    for module in (tagged_video_listing, category_listing, embedded_gallery, fallback):
         register(module.EXTRACTOR)
 
 

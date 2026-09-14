@@ -19,6 +19,8 @@
 
 Veloci is a Tauri desktop app that scans listing/gallery pages, builds a persistent download queue, and pulls videos down in parallel through a [yt-dlp](https://github.com/yt-dlp/yt-dlp)-powered Python engine. It's built for bulk jobs: point it at a listing page (or a whole page range), let it discover every video on the page, and manage the resulting queue with per-item or bulk controls.
 
+A handful of listing-page templates get a tuned extractor for reliable pagination and link detection; any other site falls back to a generic, best-effort scan (same link-detection heuristic, no site-specific tuning), so it's worth trying against a page that isn't specifically supported.
+
 <div align="center">
   <img src="docs/screenshot.png" alt="Veloci UI screenshot" width="820" />
 </div>

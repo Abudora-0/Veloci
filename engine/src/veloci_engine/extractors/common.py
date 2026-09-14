@@ -32,6 +32,30 @@ DEFAULT_HEADERS = {
 REQUEST_DELAY_SECONDS = 1.0
 
 
+def _cloudflare_challenge_notice(response: httpx.Response) -> str | None:
+    """If this response is a Cloudflare bot challenge, describe it plainly.
+
+    Sites occasionally turn on Cloudflare's managed/JS challenge after an
+    extractor was written and verified against them (confirmed happening to
+    one of the supported sites). That's not a parsing bug and not something
+    a plain HTTP request can solve -- it needs a real browser -- so it
+    deserves a message that says so instead of surfacing as a bare
+    "403 Forbidden".
+    """
+    if "cloudflare" not in response.headers.get("server", "").lower():
+        return None
+    if response.headers.get("cf-mitigated", "").lower() == "challenge" or (
+        response.status_code in (403, 503) and "challenges.cloudflare.com" in response.text
+    ):
+        return (
+            "blocked by a Cloudflare bot challenge -- this site now requires "
+            "passing a browser challenge that a plain request can't solve. "
+            "Try again later, or check whether the page loads in a normal "
+            "browser."
+        )
+    return None
+
+
 def fetch(url: str, *, client: httpx.Client | None = None) -> str:
     owns_client = client is None
     client = client or httpx.Client(headers=DEFAULT_HEADERS, follow_redirects=True, timeout=20.0)
@@ -39,6 +63,11 @@ def fetch(url: str, *, client: httpx.Client | None = None) -> str:
         response = client.get(url)
         response.raise_for_status()
         return response.text
+    except httpx.HTTPStatusError as exc:
+        notice = _cloudflare_challenge_notice(exc.response)
+        if notice:
+            raise ExtractorError(f"{url}: {notice}") from exc
+        raise ExtractorError(f"failed to fetch {url}: {exc}") from exc
     except httpx.HTTPError as exc:
         raise ExtractorError(f"failed to fetch {url}: {exc}") from exc
     finally:
@@ -72,7 +101,7 @@ def default_next_page(tree: HTMLParser, current_url: str) -> str | None:
 
 # Some WordPress video-gallery plugins (e.g. "KGVID") embed each video as
 # schema.org VideoObject markup rather than linking to a separate post page --
-# confirmed on futapo2.com/radroachhd/, where 36 videos live entirely as
+# confirmed on a real creator gallery page, where 36 videos live entirely as
 # HTML-entity-escaped itemprop="contentUrl" text (apparently duplicated into a
 # meta description for SEO) with a direct .mp4 URL each, no <a href> at all.
 # Both the escaped and literal attribute forms are checked since it's not
@@ -133,12 +162,12 @@ class GenericListingExtractor:
     def __init__(
         self,
         name: str,
-        domains: set[str],
+        domains: set[str] | None,
         video_url_pattern: str,
         *,
         next_page: Callable[[HTMLParser, str], str | None] = default_next_page,
         # Scan exactly the page the user gives us, no more. A category/tag
-        # listing (e.g. fap-nation.org/category/animation-porn/page/2/) has
+        # listing (e.g. a site's /category/<name>/page/2/) has
         # its own rel="next" link chasing forward through the *entire*
         # site's catalog (confirmed: that category has 529 pages) -- with a
         # higher cap here, scanning "page 2" silently keeps crawling into
@@ -154,19 +183,37 @@ class GenericListingExtractor:
         anchor_scope: Callable[[HTMLParser], list | None] | None = None,
     ) -> None:
         self.name = name
-        self.domains = frozenset(domains)
+        # None means "no fixed domain list" -- used by the generic fallback
+        # extractor (extractors/fallback.py) for sites with no dedicated
+        # extractor: it scopes itself to whatever host the listing URL
+        # actually is at crawl time (see iter_video_urls below) instead of a
+        # pre-registered set, and matches() always succeeds so it can be
+        # tried as a last resort for any domain.
+        self.domains = frozenset(domains) if domains is not None else None
         self._video_re = re.compile(video_url_pattern)
         self._next_page = next_page
         self._max_pages = max_pages
         self._anchor_scope = anchor_scope
 
     def matches(self, url: str) -> bool:
+        if self.domains is None:
+            return True
         return urlparse(url).netloc.lower().removeprefix("www.") in self.domains
 
     def iter_video_urls(self, listing_url: str, *, max_items: int | None = None) -> Iterator[str]:
         seen: set[str] = set()
         yielded = 0
         url: str | None = listing_url
+        # A fixed extractor already knows its domain(s) up front; the
+        # generic fallback (self.domains is None) instead scopes itself to
+        # whichever host the caller actually pasted, computed once here so
+        # every page of this same crawl stays scoped to that one site
+        # rather than drifting if a redirect changes host mid-crawl.
+        allowed_domains = (
+            self.domains
+            if self.domains is not None
+            else frozenset({urlparse(listing_url).netloc.lower().removeprefix("www.")})
+        )
         client = httpx.Client(headers=DEFAULT_HEADERS, follow_redirects=True, timeout=20.0)
         try:
             for page_num in range(self._max_pages):
@@ -188,7 +235,7 @@ class GenericListingExtractor:
                 # unconditionally rather than running it through the
                 # occurrence-threshold heuristic below.
                 page_had_new = False
-                for embedded_url in _extract_embedded_media_urls(html, url, self.domains):
+                for embedded_url in _extract_embedded_media_urls(html, url, allowed_domains):
                     if embedded_url in seen:
                         continue
                     seen.add(embedded_url)
@@ -217,7 +264,7 @@ class GenericListingExtractor:
                     absolute = urljoin(url, href)
                     parsed = urlparse(absolute)
                     host = parsed.netloc.lower().removeprefix("www.")
-                    if host not in self.domains:
+                    if host not in allowed_domains:
                         continue  # skip ads/affiliates/mirrors on other domains
                     if not self._video_re.search(parsed.path):
                         continue

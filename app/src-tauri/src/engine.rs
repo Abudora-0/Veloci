@@ -6,14 +6,23 @@
 use std::io::{BufRead, BufReader, Write};
 #[cfg(debug_assertions)]
 use std::path::PathBuf;
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::sync::mpsc::{self, Sender};
 use std::sync::Mutex;
 
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager};
 
 pub struct EngineHandle {
-    stdin: Mutex<Option<ChildStdin>>,
+    // A dedicated writer thread (spawned in start()) owns the actual
+    // ChildStdin and drains this channel -- send_engine_command only ever
+    // enqueues here, it never touches the pipe itself. Sender::send on an
+    // unbounded channel doesn't block, so a stalled/slow engine can no
+    // longer serialize every queued command behind one blocking pipe
+    // write. None means no engine process is running at all (spawn
+    // failed), which send_engine_command reports the same way a closed
+    // channel does: "engine process is not running".
+    writer: Mutex<Option<Sender<String>>>,
     // Kept alive for the app's whole lifetime -- see ProcessTreeJob's docs
     // below. Never read again after construction; the underscore reflects
     // that its only job is to not get dropped early.
@@ -252,8 +261,37 @@ fn spawn_engine_process() -> std::io::Result<Child> {
     }
 }
 
+// Logs an emit() failure instead of silently discarding it (the previous
+// `let _ = app.emit(...)` left zero trace if this ever failed, e.g. the
+// window having already been destroyed while a reader/writer thread was
+// still running) -- there's no logging crate wired up here, so stderr is
+// the best available trail for a future "events stopped arriving" report.
+fn emit_or_log(app: &AppHandle, event: &str, payload: impl serde::Serialize + Clone) {
+    if let Err(err) = app.emit(event, payload) {
+        eprintln!("failed to emit \"{event}\": {err}");
+    }
+}
+
 pub fn start(app: &AppHandle) {
-    let mut child = spawn_engine_process().expect("failed to start veloci_engine sidecar");
+    let mut child = match spawn_engine_process() {
+        Ok(child) => child,
+        Err(err) => {
+            // A PyInstaller-frozen sidecar getting quarantined by
+            // antivirus, or simply missing/corrupted, used to `.expect()`
+            // its way into panicking the whole app during setup -- instead,
+            // log it and register a disabled handle so send_engine_command
+            // reports "engine process is not running" (its existing error
+            // path for a None writer) the moment the frontend tries to use
+            // it, and the window still opens rather than the app failing
+            // to launch outright.
+            eprintln!("failed to start veloci_engine sidecar: {err}");
+            app.manage(EngineHandle {
+                writer: Mutex::new(None),
+                _job: None,
+            });
+            return;
+        }
+    };
 
     // Best-effort: an older Windows without job-nesting support, or the
     // rare case where job creation itself fails, just means we're back to
@@ -263,12 +301,33 @@ pub fn start(app: &AppHandle) {
         let _ = job.add(&child);
     }
 
-    let stdin = child.stdin.take().expect("child stdin was not piped");
+    let mut stdin = child.stdin.take().expect("child stdin was not piped");
     let stdout = child.stdout.take().expect("child stdout was not piped");
     let stderr = child.stderr.take().expect("child stderr was not piped");
 
+    // Dedicated writer thread: send_engine_command only ever enqueues a
+    // line here (never blocks), while this thread does the actual
+    // synchronous pipe write -- so one slow/stalled write can no longer
+    // serialize every other queued command behind it.
+    let (tx, rx) = mpsc::channel::<String>();
+    let writer_app = app.clone();
+    std::thread::spawn(move || {
+        for line in rx {
+            if let Err(err) = stdin.write_all(line.as_bytes()).and_then(|_| stdin.flush()) {
+                emit_or_log(
+                    &writer_app,
+                    "engine-event",
+                    serde_json::json!({
+                        "event": "error",
+                        "message": format!("failed to write to engine: {err}"),
+                    }),
+                );
+            }
+        }
+    });
+
     app.manage(EngineHandle {
-        stdin: Mutex::new(Some(stdin)),
+        writer: Mutex::new(Some(tx)),
         _job: job,
     });
 
@@ -280,10 +339,11 @@ pub fn start(app: &AppHandle) {
             }
             match serde_json::from_str::<Value>(&line) {
                 Ok(payload) => {
-                    let _ = stdout_app.emit("engine-event", payload);
+                    emit_or_log(&stdout_app, "engine-event", payload);
                 }
                 Err(err) => {
-                    let _ = stdout_app.emit(
+                    emit_or_log(
+                        &stdout_app,
                         "engine-event",
                         serde_json::json!({
                             "event": "error",
@@ -300,7 +360,7 @@ pub fn start(app: &AppHandle) {
     let stderr_app = app.clone();
     std::thread::spawn(move || {
         for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-            let _ = stderr_app.emit("engine-log", line);
+            emit_or_log(&stderr_app, "engine-log", line);
         }
     });
 
@@ -316,10 +376,9 @@ pub fn send_engine_command(
     handle: tauri::State<EngineHandle>,
     payload: Value,
 ) -> Result<(), String> {
-    let mut guard = handle.stdin.lock().map_err(|e| e.to_string())?;
-    let stdin = guard.as_mut().ok_or("engine process is not running")?;
     let mut line = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
     line.push('\n');
-    stdin.write_all(line.as_bytes()).map_err(|e| e.to_string())?;
-    stdin.flush().map_err(|e| e.to_string())
+    let guard = handle.writer.lock().map_err(|e| e.to_string())?;
+    let tx = guard.as_ref().ok_or("engine process is not running")?;
+    tx.send(line).map_err(|_| "engine process is not running".to_string())
 }

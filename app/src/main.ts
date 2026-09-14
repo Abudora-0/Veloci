@@ -144,8 +144,19 @@ function renderCurrentPage() {
   for (const url of pageUrls) {
     const row = videos.get(url)!;
     updateRowMeta(row);
-    rebuildStatusAndActions(row);
-    rebuildProgressCell(row);
+    const statusChanged = row.status !== row.renderedStatus;
+    const revealChanged = row.status === "done" && row.destPath !== row.renderedDestPath;
+    if (statusChanged || revealChanged) {
+      rebuildStatusAndActions(row);
+      rebuildProgressCell(row);
+    } else if (row.status === "downloading") {
+      // Already built for this status -- just refresh the numbers instead
+      // of tearing down and recreating .progress-fill, which would reset
+      // its CSS transition and visibly flicker every other still-
+      // downloading row on the page whenever any single row's status
+      // change forces this whole function to run.
+      patchProgressCell(row);
+    }
   }
 
   updatePaginationControls();
@@ -355,6 +366,14 @@ function initCustomSelect(select: HTMLSelectElement) {
   // scroll offsets, so it must close rather than drift out of place.
   window.addEventListener("scroll", closeList, true);
 
+  // Covers programmatic value changes from outside this widget (e.g.
+  // loadSettings restoring a saved quality/page-size) that set select.value
+  // directly and dispatch "change" themselves -- without this, the visible
+  // trigger button kept showing whatever was selected at page load instead
+  // of the restored value, even though select.value (and therefore actual
+  // app behavior) was already correct.
+  select.addEventListener("change", syncLabel);
+
   syncLabel();
 }
 
@@ -463,7 +482,10 @@ function loadSettings() {
     const s = JSON.parse(raw);
     if (typeof s.destDir === "string") destDirInput.value = s.destDir;
     if (typeof s.concurrency === "number") concurrencyInput.value = String(s.concurrency);
-    if (typeof s.quality === "string") qualitySelect.value = s.quality;
+    if (typeof s.quality === "string") {
+      qualitySelect.value = s.quality;
+      qualitySelect.dispatchEvent(new Event("change"));
+    }
     if (typeof s.rateLimit === "number" && s.rateLimit > 0) rateLimitInput.value = String(s.rateLimit);
     if (typeof s.theme === "string" && (THEMES as readonly string[]).includes(s.theme)) {
       applyTheme(s.theme as Theme);
@@ -471,6 +493,7 @@ function loadSettings() {
     if (typeof s.pageSize === "number" && (PAGE_SIZES as readonly number[]).includes(s.pageSize)) {
       pageSize = s.pageSize;
       pageSizeSelect.value = String(s.pageSize);
+      pageSizeSelect.dispatchEvent(new Event("change"));
     }
   } catch {
     /* corrupt settings are not worth surfacing -- fall back to defaults */
@@ -855,7 +878,12 @@ function rebuildProgressCell(row: VideoRow) {
   cell.replaceChildren(div);
 }
 
-const META_KEYS = ["title", "duration", "filesize", "total", "thumbnail"] as const;
+// "total" deliberately isn't here even though a "progress" event carries it:
+// it's not part of matchesSearch's haystack and isn't shown by
+// updateRowMeta (size comes from filesize), so treating it as "metadata"
+// made metaTouched (below) true on every single progress tick instead of
+// just real title/duration/filesize/thumbnail arrivals.
+const META_KEYS = ["title", "duration", "filesize", "thumbnail"] as const;
 const PROGRESS_KEYS = ["percent", "speed", "eta", "downloaded", "total"] as const;
 
 // batchIndex only drives the staggered entrance animation. autoRepaginate
@@ -940,9 +968,25 @@ function upsertVideo(
   markStatsDirty();
 }
 
+// Clearing hundreds of finished videos fires one remove_video command per
+// row, each answered by its own "removed" event -- removeVideo used to
+// renumber (O(n)) and fully re-render on every single one of those,
+// turning a bulk clear into O(n^2) work and a multi-second freeze. Instead,
+// just mark the batch dirty here and let the same 250ms tick that already
+// flushes stats (below) coalesce however many removals landed since the
+// last flush into one renumber + one render.
+let removalsPending = false;
+
 function removeVideo(url: string) {
   if (!videos.has(url)) return;
   videos.delete(url);
+  removalsPending = true;
+  markStatsDirty();
+}
+
+function flushRemovals() {
+  if (!removalsPending) return;
+  removalsPending = false;
   // Renumber the remaining rows so their index badges stay a contiguous
   // 1..N sequence -- only the JS field here; renderCurrentPage's per-row
   // refresh (below) writes the actual badge text for whichever of them are
@@ -954,7 +998,6 @@ function removeVideo(url: string) {
   }
   listDirty = true;
   renderCurrentPage();
-  markStatsDirty();
 }
 
 function clearVideoList() {
@@ -1028,6 +1071,7 @@ function flushStats() {
 }
 
 setInterval(() => {
+  if (removalsPending) flushRemovals();
   if (statsDirty) flushStats();
 }, 250);
 
